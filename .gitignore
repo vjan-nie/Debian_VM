@@ -1,0 +1,21 @@
+# --- Inception Security ---
+.env
+secrets/
+*.txt
+
+# --- VirtualBox / VM Data ---
+*.vdi
+*.vbox
+*.vbox-prev
+*.log
+Logs/
+Snapshots/
+
+# --- ISO & Binaries ---
+*.iso
+
+# --- System & Editors ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
