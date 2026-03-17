@@ -7,7 +7,7 @@ if ! grep -q "Host inception" ~/.ssh/config; then
 
 Host inception
     HostName 127.0.0.1
-    User login
+    User vjan-nie
     Port 4242
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
@@ -20,7 +20,7 @@ fi
 
 # 2. Inject SSH key
 if [ -f ~/.ssh/id_rsa.pub ] || [ -f ~/.ssh/id_ed25519.pub ]; then
-    echo "Copy your SSH key into your VM: ssh-copy-id -p 4242 login@127.0.0.1"
+    echo "Copy your SSH key into your VM: ssh-copy-id -p 4242 vjan-nie@127.0.0.1"
 fi
 
 # 3. VS Code Patch (Python)
@@ -38,3 +38,5 @@ s['remote.SSH.connectTimeout'] = 60
 with open(p, 'w') as f: json.dump(s, f, indent=4)
 " 2>/dev/null
 echo "✓ Host configuration succeed: SSH keepalive and VS Code patch ready."
+
+ssh-copy-id -p 4242 vjan-nie@127.0.0.1 2>/dev/null || true
