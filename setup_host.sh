@@ -40,3 +40,6 @@ with open(p, 'w') as f: json.dump(s, f, indent=4)
 echo "✓ Host configuration succeed: SSH keepalive and VS Code patch ready."
 
 ssh-copy-id -p 4242 vjan-nie@127.0.0.1 2>/dev/null || true
+
+# Eject the installation ISO to ensure we boot from the HDD next time
+VBoxManage storageattach "Inception_Debian" --storagectl "IDE Controller" --port 0 --device 0 --medium none
