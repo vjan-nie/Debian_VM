@@ -1,16 +1,44 @@
 #!/bin/bash
+# ==============================================================================
+# FIRST-BOOT SETUP SCRIPT - INCEPTION 42
+# ==============================================================================
+# Purpose: Automate provisioning for the headless Debian VM guest.
+# Ensures network resilience, installs the official Docker Engine daemon,
+# configures local privileges, and auto-disables itself post-execution.
+# ==============================================================================
+
+# Fail-fast pattern: Exit immediately if any command returns a non-zero status
 set -e
+
+# Telemetry redirection: Route STDOUT and STDERR to a log file for remote auditing
 exec >> /var/log/firstboot-inception.log 2>&1
 echo "[$(date)] Starting firstboot-inception..."
 
-# --- a) Detect host-only interface, assign IP, persist via ifupdown ---
-PRIMARY=$(ip route show default | awk '{print $5; exit}')
-[ -n "$PRIMARY" ] || { echo "no default route yet"; exit 1; }
+# ------------------------------------------------------------------------------
+# A) NETWORKING: Host-Only Interface Detection and Persistence
+# ------------------------------------------------------------------------------
+# Resilience loop: Wait for the network subsystem to assign the default route 
+# (NAT/Internet) before computing the secondary Host-Only interface.
+for i in $(seq 1 30); do
+    PRIMARY=$(ip route show default | awk '{print $5; exit}')
+    if [ -n "$PRIMARY" ]; then 
+        break 
+    fi
+    sleep 2
+done
+
+# Guardrail: Abort safely if no primary default route is active after 60 seconds
+[ -n "$PRIMARY" ] || { echo "no default route after 60s"; exit 1; }
+
+# Interface isolation: Filter physical network devices excluding the primary NAT one
 HOIF=$(ls /sys/class/net | grep -E '^(en|eth)' | grep -vx "$PRIMARY" | head -1)
 
 if [ -n "$HOIF" ]; then
+    # Runtime IP configuration (Hotplug application)
     ip addr add 192.168.56.10/24 dev "$HOIF" 2>/dev/null || true
     ip link set "$HOIF" up
+    
+    # Storage persistence: Write configuration files to ensure it survives post-reboot
     cat > /etc/network/interfaces.d/host-only <<EOF
 auto ${HOIF}
 iface ${HOIF} inet static
@@ -19,33 +47,51 @@ iface ${HOIF} inet static
 EOF
 fi
 
-# --- b) Install Docker via official repo (plain URLs — no Markdown wrapping) ---
+# ------------------------------------------------------------------------------
+# B) PACKAGE MANAGEMENT: Clean Install of Official Docker Engine
+# ------------------------------------------------------------------------------
+# Prior system synchronization and installation of secure transport dependencies (HTTPS)
 apt-get update -qq
 apt-get install -y ca-certificates curl gnupg make git
 
+# TLS Security: Initialize a dedicated local cryptographic keyring directory
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/debian/gpg \
     | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 chmod a+r /etc/apt/keyrings/docker.gpg
 
+# Dynamic injection of architecture and official codename for the current Debian release
 . /etc/os-release
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
 https://download.docker.com/linux/debian ${VERSION_CODENAME} stable" \
     | tee /etc/apt/sources.list.d/docker.list > /dev/null
 
+# Source list update and installation of Docker CE along with core Compose V2 plugins
 apt-get update -qq
 apt-get install -y \
     docker-ce docker-ce-cli containerd.io \
     docker-buildx-plugin docker-compose-plugin
 
+# Privilege management: Grant Docker execution rights to the cluster login user
+# Prevents the anti-pattern of requiring 'sudo' to orchestrate application stacks
 usermod -aG docker vjan-nie
+
+# Ensure the background Docker daemon system service is enabled and started
 systemctl enable --now docker
 
-# --- c) Local domain resolution inside VM ---
+# ------------------------------------------------------------------------------
+# C) LOCAL RESOLUTION: Internal Domain Name Mapping
+# ------------------------------------------------------------------------------
+# Idempotence guard: Append the subject domain mapping to localhost loopback,
+# preventing duplicate records if the script is ever executed manually again
 grep -q "vjan-nie.42.fr" /etc/hosts \
     || echo "127.0.0.1 vjan-nie.42.fr" >> /etc/hosts
 
-# --- d) Disable so it only ever runs once ---
+# ------------------------------------------------------------------------------
+# D) CONTROLLED SELF-DEACTIVATION: Systemd Boot Service Removal
+# ------------------------------------------------------------------------------
+# Single-execution pattern: Tear down the runtime boot symlink to ensure this
+# heavy initialization infrastructure process never executes on future boot cycles
 systemctl disable firstboot-inception.service
 
 echo "[$(date)] firstboot-inception complete."
