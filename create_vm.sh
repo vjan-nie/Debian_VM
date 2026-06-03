@@ -28,16 +28,27 @@ VBoxManage createvm --name "$VM_NAME" --ostype "Debian_64" --register
 VBoxManage modifyvm "$VM_NAME" --memory 4096 --cpus 1 --vram 16
 VBoxManage modifyvm "$VM_NAME" --boot1 dvd --boot2 disk --boot3 none --boot4 none
 
+# Find or create host-only adapter at 192.168.56.1
+HOSTONLY_IF=$(VBoxManage list hostonlyifs \
+    | awk '/^Name:/{name=$2} /^IPAddress:.*192\.168\.56\.1/{print name; exit}')
+if [ -z "$HOSTONLY_IF" ]; then
+    HOSTONLY_IF=$(VBoxManage hostonlyif create 2>&1 \
+        | grep -oP "(?<=Interface ').*(?=')")
+    VBoxManage hostonlyif ipconfig "$HOSTONLY_IF" \
+        --ip 192.168.56.1 --netmask 255.255.255.0
+fi
+VBoxManage dhcpserver modify --ifname "$HOSTONLY_IF" --disable 2>/dev/null || true
+
 # Network configuration
 VBoxManage modifyvm "$VM_NAME" --nic1 nat
-# Standard Inception ports
 VBoxManage modifyvm "$VM_NAME" --natpf1 "ssh,tcp,,4242,,22"
-VBoxManage modifyvm "$VM_NAME" --natpf1 "http,tcp,,8080,,80"
-VBoxManage modifyvm "$VM_NAME" --natpf1 "https,tcp,,443,,443"
-VBoxManage modifyvm "$VM_NAME" --natpf1 "db,tcp,,3306,,3306"
-
 VBoxManage modifyvm "$VM_NAME" --cableconnected1 on
 VBoxManage modifyvm "$VM_NAME" --nictype1 82543GC
+
+VBoxManage modifyvm "$VM_NAME" \
+    --nic2 hostonly \
+    --hostonlyadapter2 "$HOSTONLY_IF" \
+    --cableconnected2 on
 
 # Storage controllers
 VBoxManage storagectl "$VM_NAME" --name "SATA Controller" --add sata --controller IntelAhci

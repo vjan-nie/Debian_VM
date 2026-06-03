@@ -43,3 +43,10 @@ ssh-copy-id -p 4242 vjan-nie@127.0.0.1 2>/dev/null || true
 
 # Eject the installation ISO to ensure we boot from the HDD next time
 VBoxManage storageattach "Inception_Debian" --storagectl "IDE Controller" --port 0 --device 0 --medium none
+
+# Add host-only DNS entry (remove stale entry if IP is wrong, then append correct one)
+if ! grep -q "^192\.168\.56\.10[[:space:]].*vjan-nie\.42\.fr" /etc/hosts; then
+    sudo sed -i '/vjan-nie\.42\.fr/d' /etc/hosts
+    echo "192.168.56.10 vjan-nie.42.fr" | sudo tee -a /etc/hosts > /dev/null
+    echo "✓ Added 192.168.56.10 vjan-nie.42.fr to /etc/hosts"
+fi
