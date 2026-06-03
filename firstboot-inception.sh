@@ -5,7 +5,8 @@ echo "[$(date)] Starting firstboot-inception..."
 
 # --- a) Detect host-only interface, assign IP, persist via ifupdown ---
 PRIMARY=$(ip route show default | awk '{print $5; exit}')
-HOIF=$(ls /sys/class/net | grep -vE "^lo$|^${PRIMARY}$" | head -1)
+[ -n "$PRIMARY" ] || { echo "no default route yet"; exit 1; }
+HOIF=$(ls /sys/class/net | grep -E '^(en|eth)' | grep -vx "$PRIMARY" | head -1)
 
 if [ -n "$HOIF" ]; then
     ip addr add 192.168.56.10/24 dev "$HOIF" 2>/dev/null || true
