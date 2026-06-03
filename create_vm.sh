@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VM_NAME="Inception_Debian"
+source "$(dirname "$0")/config.sh"
 
 # Check storage environment (Local vs Cluster)
 if [ -d "/sgoinfre/$USER" ]; then
@@ -30,18 +30,18 @@ VBoxManage modifyvm "$VM_NAME" --boot1 dvd --boot2 disk --boot3 none --boot4 non
 
 # Find or create host-only adapter at 192.168.56.1
 HOSTONLY_IF=$(VBoxManage list hostonlyifs \
-    | awk '/^Name:/{name=$2} /^IPAddress:.*192\.168\.56\.1/{print name; exit}')
+    | awk -v ip="$HOSTONLY_HOST_IP" '/^Name:/{name=$2} /^IPAddress:/{if($2==ip) print name; exit}')
 if [ -z "$HOSTONLY_IF" ]; then
     HOSTONLY_IF=$(VBoxManage hostonlyif create 2>&1 \
         | grep -oP "(?<=Interface ').*(?=')")
     VBoxManage hostonlyif ipconfig "$HOSTONLY_IF" \
-        --ip 192.168.56.1 --netmask 255.255.255.0
+        --ip "$HOSTONLY_HOST_IP" --netmask 255.255.255.0
 fi
 VBoxManage dhcpserver modify --ifname "$HOSTONLY_IF" --disable 2>/dev/null || true
 
 # Network configuration
 VBoxManage modifyvm "$VM_NAME" --nic1 nat
-VBoxManage modifyvm "$VM_NAME" --natpf1 "ssh,tcp,,4242,,22"
+VBoxManage modifyvm "$VM_NAME" --natpf1 "ssh,tcp,,$SSH_PORT,,22"
 VBoxManage modifyvm "$VM_NAME" --cableconnected1 on
 VBoxManage modifyvm "$VM_NAME" --nictype1 82543GC
 
@@ -52,12 +52,11 @@ VBoxManage modifyvm "$VM_NAME" \
 
 # Storage controllers
 VBoxManage storagectl "$VM_NAME" --name "SATA Controller" --add sata --controller IntelAhci
-VBoxManage storagectl "$VM_NAME" --name "IDE Controller" --add ide
 
 # Disk attachment
 if [ -f "$DISK_PATH" ]; then rm -f "$DISK_PATH"; fi
 VBoxManage createmedium disk --filename "$DISK_PATH" --size 20480 --format VDI
 VBoxManage storageattach "$VM_NAME" --storagectl "SATA Controller" --port 0 --device 0 --type hdd --medium "$DISK_PATH"
-VBoxManage storageattach "$VM_NAME" --storagectl "IDE Controller" --port 0 --device 0 --type dvddrive --medium "$ISO_PATH"
+VBoxManage storageattach "$VM_NAME" --storagectl "SATA Controller" --port 1 --device 0 --type dvddrive --medium "$ISO_PATH"
 
 echo "VM '$VM_NAME' created successfully!"

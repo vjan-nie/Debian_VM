@@ -1,3 +1,7 @@
+# --- Generated from templates (do not track) ---
+preseed.cfg
+firstboot-inception.sh
+
 # --- Inception Security ---
 .env
 secrets/

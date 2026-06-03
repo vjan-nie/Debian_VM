@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source "$(dirname "$0")/config.sh"
+
 # 1. Host SSH Config with KeepAlives
 mkdir -p ~/.ssh
 if ! grep -q "Host inception" ~/.ssh/config; then
@@ -7,8 +9,8 @@ if ! grep -q "Host inception" ~/.ssh/config; then
 
 Host inception
     HostName 127.0.0.1
-    User vjan-nie
-    Port 4242
+    User $VM_USER
+    Port $SSH_PORT
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
     # --- Keepalive signal to VirtualBox ---
@@ -20,7 +22,7 @@ fi
 
 # 2. Inject SSH key
 if [ -f ~/.ssh/id_rsa.pub ] || [ -f ~/.ssh/id_ed25519.pub ]; then
-    echo "Copy your SSH key into your VM: ssh-copy-id -p 4242 vjan-nie@127.0.0.1"
+    echo "Copy your SSH key into your VM: ssh-copy-id -p $SSH_PORT $VM_USER@127.0.0.1"
 fi
 
 # 3. VS Code Patch (Python)
@@ -39,14 +41,14 @@ with open(p, 'w') as f: json.dump(s, f, indent=4)
 " 2>/dev/null
 echo "✓ Host configuration succeed: SSH keepalive and VS Code patch ready."
 
-ssh-copy-id -p 4242 vjan-nie@127.0.0.1 2>/dev/null || true
+ssh-copy-id -p "$SSH_PORT" "$VM_USER@127.0.0.1"
 
 # Eject the installation ISO to ensure we boot from the HDD next time
-VBoxManage storageattach "Inception_Debian" --storagectl "IDE Controller" --port 0 --device 0 --medium none
+VBoxManage storageattach "$VM_NAME" --storagectl "SATA Controller" --port 1 --device 0 --medium none
 
 # Add host-only DNS entry (remove stale entry if IP is wrong, then append correct one)
-if ! grep -q "^192\.168\.56\.10[[:space:]].*vjan-nie\.42\.fr" /etc/hosts; then
-    sudo sed -i '/vjan-nie\.42\.fr/d' /etc/hosts
-    echo "192.168.56.10 vjan-nie.42.fr" | sudo tee -a /etc/hosts > /dev/null
-    echo "✓ Added 192.168.56.10 vjan-nie.42.fr to /etc/hosts"
+if ! grep -q "^${HOSTONLY_VM_IP}[[:space:]].*${DOMAIN}" /etc/hosts; then
+    sudo sed -i "/${DOMAIN}/d" /etc/hosts
+    echo "${HOSTONLY_VM_IP} ${DOMAIN}" | sudo tee -a /etc/hosts > /dev/null
+    echo "✓ Added ${HOSTONLY_VM_IP} ${DOMAIN} to /etc/hosts"
 fi

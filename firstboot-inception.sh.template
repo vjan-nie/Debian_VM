@@ -35,14 +35,14 @@ HOIF=$(ls /sys/class/net | grep -E '^(en|eth)' | grep -vx "$PRIMARY" | head -1)
 
 if [ -n "$HOIF" ]; then
     # Runtime IP configuration (Hotplug application)
-    ip addr add 192.168.56.10/24 dev "$HOIF" 2>/dev/null || true
+    ip addr add ${HOSTONLY_VM_IP}/24 dev "$HOIF" 2>/dev/null || true
     ip link set "$HOIF" up
     
     # Storage persistence: Write configuration files to ensure it survives post-reboot
     cat > /etc/network/interfaces.d/host-only <<EOF
 auto ${HOIF}
 iface ${HOIF} inet static
-    address 192.168.56.10
+    address ${HOSTONLY_VM_IP}
     netmask 255.255.255.0
 EOF
 fi
@@ -74,7 +74,7 @@ apt-get install -y \
 
 # Privilege management: Grant Docker execution rights to the cluster login user
 # Prevents the anti-pattern of requiring 'sudo' to orchestrate application stacks
-usermod -aG docker vjan-nie
+usermod -aG docker ${VM_USER}
 
 # Ensure the background Docker daemon system service is enabled and started
 systemctl enable --now docker
@@ -84,8 +84,8 @@ systemctl enable --now docker
 # ------------------------------------------------------------------------------
 # Idempotence guard: Append the subject domain mapping to localhost loopback,
 # preventing duplicate records if the script is ever executed manually again
-grep -q "vjan-nie.42.fr" /etc/hosts \
-    || echo "127.0.0.1 vjan-nie.42.fr" >> /etc/hosts
+grep -q "${DOMAIN}" /etc/hosts \
+    || echo "127.0.0.1 ${DOMAIN}" >> /etc/hosts
 
 # ------------------------------------------------------------------------------
 # D) CONTROLLED SELF-DEACTIVATION: Systemd Boot Service Removal

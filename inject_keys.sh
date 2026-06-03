@@ -1,12 +1,20 @@
 #!/bin/bash
 
-VM_NAME="Inception_Debian"
+source "$(dirname "$0")/config.sh"
 
 # Get real host IP in local network
 HOST_IP=$(hostname -I | awk '{print $1}')
 PRESEED_URL="http://$HOST_IP:8000/preseed.cfg"
 
 echo "Using Host IP for preseed: $HOST_IP"
+
+echo "Generating preseed and firstboot script from templates..."
+set -a; . "$(dirname "$0")/config.sh"; set +a
+envsubst '${VM_USER} ${VM_PASSWORD}' \
+    < preseed.cfg.template > preseed.cfg
+envsubst '${HOSTONLY_VM_IP} ${VM_USER} ${DOMAIN}' \
+    < firstboot-inception.sh.template > firstboot-inception.sh
+chmod +x firstboot-inception.sh
 
 echo "Ensuring port 8000 is free..."
 fuser -k 8000/tcp 2>/dev/null || true

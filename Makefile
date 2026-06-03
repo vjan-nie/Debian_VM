@@ -10,8 +10,9 @@
 #                                                                              #
 # **************************************************************************** #
 
-# --- Variables ---
-VM_NAME     := Inception_Debian
+# --- Variables (sourced from config.sh) ---
+VM_NAME     := $(shell . ./config.sh && echo $$VM_NAME)
+DOMAIN      := $(shell . ./config.sh && echo $$DOMAIN)
 CREATE_CMD  := ./create_vm.sh
 INJECT_CMD  := ./inject_keys.sh
 SETUP_CMD   := ./setup_host.sh
@@ -77,5 +78,5 @@ re: fclean all
 info:
 	@printf "\n$(C_BLUE)=== Inception Info Map ===$(C_RESET)\n"
 	@printf "$(C_YELLOW)SSH Connection:$(C_RESET) ssh inception\n"
-	@printf "$(C_YELLOW)Website (NGINX):$(C_RESET) https://localhost (Port 8080)\n"
+	@printf "$(C_YELLOW)Website (NGINX):$(C_RESET) https://$(DOMAIN)\n"
 	@printf "$(C_BLUE)==========================$(C_RESET)\n\n"

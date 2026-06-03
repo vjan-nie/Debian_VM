@@ -1,111 +1,80 @@
 # 🚀 Inception Debian VM Automator
 
-A fully automated, zero-touch deployment script for a Debian 13 Virtual Machine using VirtualBox. This project was built to serve as the foundational infrastructure for the **42 School Inception project**, providing a reproducible, robust, and headless installation process.
+Zero-touch deployment of a headless Debian VM in VirtualBox, pre-provisioned for the 42 **Inception** project. It builds the VM, installs the OS unattended, and on first boot sets up Docker, the build tooling, and a host-only network — so you can open the WordPress site in your host browser at `https://<your-domain>` once the stack is up.
 
-## 🌟 Acknowledgements & Inspiration
+## What you get
 
-This project was heavily inspired by the comprehensive work of LESdylan. You can check out his awesome repository here:
-👉 **[[Link to LESdylan's Repository](https://github.com/LESdylan/setup_arch_linux)]**
+- A VirtualBox VM with two adapters: **NAT** (internet + SSH) and **host-only** (a fixed IP for browser access).
+- Unattended Debian install driven by a preseed file (no clicking through the installer).
+- First-boot provisioning: Docker CE + Compose plugin, `make`, `git`, the VM user added to the `docker` group, and the static host-only IP — with no manual steps.
+- An `ssh inception` alias and a host `/etc/hosts` entry so `https://<domain>` resolves to the VM.
 
----
+## Quick start
 
-## 🏗️ How It Works (Architecture)
+1. Edit `config.sh` (see the table below).
+2. `make`
+3. When provisioning finishes, log in, run Inception, and open the site in your host browser.
 
-The deployment relies on a `Makefile` that orchestrates several bash scripts. It creates the VM, downloads the Debian ISO, spins up a temporary HTTP server to host a `preseed.cfg` file, and uses a "Ghost Typist" mechanism to inject the boot parameters into the VirtualBox console.
+```bash
+make            # create + install + provision the VM
+ssh inception   # log into the VM
+# inside the VM:
+git clone <your Inception repo> && cd inception && make
+# then, on the host browser: https://<your-domain>  (accept the self-signed cert)
+```
 
-~~~mermaid
-sequenceDiagram
-    participant U as User
-    participant M as Makefile
-    participant V as create_vm.sh
-    participant I as inject_keys.sh
-    participant H as setup_host.sh
-    participant VB as VirtualBox (Debian)
-    
-    U->>M: make install
-    M->>V: Build Virtual Hardware
-    V-->>M: VM Created
-    M->>I: Start HTTP Server & Boot VM
-    I->>VB: Send Keyboard Scancodes (TAB, Backspace...)
-    I->>VB: Type: url=http://<HOST_IP>:8000/preseed.cfg
-    VB->>I: GET /preseed.cfg
-    I-->>VB: 200 OK (Serves Preseed)
-    VB->>VB: Automated OS Installation
-    VB-->>U: Reboot & Login Screen
-    U->>I: Press ENTER (Kills HTTP Server)
-    M->>H: Configure SSH & VS Code
-    H-->>U: Setup Complete!
-~~~
+## Configuration — `config.sh`
 
----
+Everything a user needs to change lives in one file at the repo root; every script sources it.
 
-## 🛠️ Quick Start
+| Variable | What it sets | Notes |
+| :--- | :--- | :--- |
+| `VM_NAME` | VirtualBox VM name | |
+| `VM_USER` | Linux user inside the VM | also the `ssh inception` target |
+| `VM_PASSWORD` | user + root password for the install | disposable VM; a weak local password is fine |
+| `DOMAIN` | the site domain | **must match** `DOMAIN_NAME` in the Inception repo, nginx's `server_name`, and the TLS cert CN |
+| `HOSTONLY_HOST_IP` | host side of the host-only network | default `192.168.56.1` (inside VirtualBox's default-allowed range) |
+| `HOSTONLY_VM_IP` | the VM's fixed IP for browser access | the host `/etc/hosts` maps `DOMAIN` to this |
+| `SSH_PORT` | host port forwarded to the VM's SSH | default `4242` |
 
-Deploying your environment is as simple as running a single command:
+### Where do the WordPress / MariaDB passwords go?
 
-~~~bash
-# 1. Clean any previous conflicting VMs or disks
-make fclean
+**Not in this repo.** This project provisions the *VM and its OS only*. The WordPress and database credentials belong to the **Inception** project itself: set them there in `srcs/.env` (non-sensitive values like domain, DB name, admin username) and `secrets/*.txt` (the actual passwords). This repo only needs the VM-level values in `config.sh` above.
 
-# 2. Build, install, and configure everything automatically
-make
-~~~
+## How it works
 
-Once the installation finishes and you see the Debian login screen, just press `ENTER` in your terminal. You can then access your machine instantly without typing passwords:
+`make` runs three stages:
 
-~~~bash
-ssh inception
-~~~
+1. **`create_vm.sh`** — builds the virtual hardware: NAT + host-only NICs, disk, and the install ISO.
+2. **`inject_keys.sh`** — generates the preseed and first-boot script from their templates (via `envsubst`, using your `config.sh`), serves them over a temporary HTTP server, and "ghost-types" the boot parameters so the installer runs unattended.
+3. **`setup_host.sh`** — configures the host: the `ssh inception` alias and the `/etc/hosts` entry.
 
----
+The preseed drops a one-shot systemd service that, on first boot, waits for the network, assigns the static host-only IP, and installs Docker + tooling — then disables itself so it only runs once.
 
-## 🧠 The Journey: Challenges & Solutions
+Browser access uses the **host-only network**: `DOMAIN → HOSTONLY_VM_IP:443 →` NGINX inside the VM. No privileged host-port binding is required.
 
-Building a completely unattended installation in VirtualBox is tricky. Here are the main roadblocks we hit and how we solved them:
+## Commands
 
-### 1. The "Ghost Typist" Collision
-**Problem:** Sending the boot parameters via `VBoxManage controlvm keyboardputstring` was colliding with the default Debian boot string (e.g., `/install.amd/vmlinuz`), creating corrupted commands that halted the bootloader.
-**Solution:** We implemented a "Deep Clean" loop that sends 110 `Backspace` scancodes (`0e 8e`) before typing our custom boot path from scratch.
+| Command | Action |
+| :--- | :--- |
+| `make` | create, install and provision the VM |
+| `make up` / `make down` | start / graceful stop |
+| `make clean` | power off, free ports, remove temp files |
+| `make fclean` | unregister and wipe the VM and its disks |
+| `make re` | `fclean`, then a full rebuild |
 
-~~~bash
-# Snippet from inject_keys.sh: Clearing the boot line safely
-for i in {1..110}; do
-    VBoxManage controlvm "$VM_NAME" keyboardputscancode 0e 8e
-done
-~~~
+## Accessing the site
 
-### 2. The Silent Blue Screen (NAT Loopback Block)
-**Problem:** The Debian installer successfully configured the network via DHCP but hung silently on a blue screen. The Python HTTP server logs were empty. VirtualBox NAT was blocking guest-to-host loopback traffic (`10.0.2.2`) due to Ubuntu's `systemd-resolved` DNS proxying rules.
-**Solution:** Instead of forcing the internal VirtualBox gateway, we dynamically grabbed the Host's real local IP (e.g., `192.168.x.x`) and bound the Python server to `0.0.0.0`. The VM simply routes out to the physical network and back in.
+`setup_host.sh` adds `HOSTONLY_VM_IP DOMAIN` to the host `/etc/hosts`. Once Inception's stack is running inside the VM, open `https://<DOMAIN>` and accept the self-signed certificate warning. If you reach the machine remotely instead of sitting at it, tunnel the port and add the hosts entry on your laptop:
 
-~~~bash
-# Snippet from inject_keys.sh: Bypassing the NAT loopback block
-HOST_IP=$(hostname -I | awk '{print $1}')
-PRESEED_URL="http://$HOST_IP:8000/preseed.cfg"
-python3 -m http.server 8000 --bind 0.0.0.0 > server.log 2>&1 &
-~~~
+```bash
+ssh -L 443:localhost:443 user@machine     # plus: HOSTONLY_VM_IP <domain> in your laptop's /etc/hosts
+```
 
-### 3. The `Connection reset by peer` SSH Error
-**Problem:** After installation, running `ssh inception` resulted in a connection reset. The NAT Port Forwarding rule was configured as `4242,,4242`, but a fresh Debian install listens on port `22`.
-**Solution:** We mapped the Host's port `4242` directly to the Guest's default SSH port `22` during VM creation.
+## Acknowledgements
 
-~~~bash
-# Corrected Port Forwarding Rule
-VBoxManage modifyvm "$VM_NAME" --natpf1 "ssh,tcp,,4242,,22"
-~~~
+Inspired by LESdylan's work — https://github.com/LESdylan/setup_arch_linux
 
-### 4. Lingering Disks & UUID Conflicts
-**Problem:** Running the creation script multiple times caused VirtualBox to throw UUID "already exists" errors, even if the `.vdi` file was deleted.
-**Solution:** A robust `fclean` target in the `Makefile` that forces VirtualBox to unregister the specific disk using `closemedium` before attempting deletion.
+## AI usage
 
----
-
-## ⚙️ Features
-
-* **Cluster-Aware Storage:** Automatically detects if it's running in the 42 cluster (`/sgoinfre/$USER`) to avoid NFS quota limits, falling back to local storage otherwise.
-* **Passwordless SSH:** Automatically sets up `~/.ssh/config` with KeepAlive parameters and injects your public key into the VM.
-* **VS Code Ready:** Patches the local VS Code settings to prevent timeout drops during remote SSH sessions.
-* **Fully Preseeded:** Answers all Debian installation prompts, including partitioning (`/dev/sda`), root passwords, and `sudo` group assignment.
-
----
-*Built with grit, bash scripting, and a lot of debugging.*
+AI assistants were used as collaborative tools, with every change reviewed and understood before committing — e.g. auditing and adversarial review, the host-only networking and first-boot provisioning design, and the parameterization refactor.
