@@ -1,6 +1,8 @@
 # 🚀 Inception Debian VM Automator
 
 Zero-touch deployment of a headless Debian VM in VirtualBox, pre-provisioned for the 42 **Inception** project. It builds the VM, installs the OS unattended, and on first boot sets up Docker, the build tooling, and a host-only network — so you can open the WordPress site in your host browser at `https://<your-domain>` once the stack is up.
+> Built to host the [Inception](https://github.com/vjan-nie/Inception) project.
+(But adjustable to meet any other needs!)
 
 ## What you get
 
