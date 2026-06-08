@@ -75,7 +75,7 @@ ssh -L 443:localhost:443 user@machine     # plus: HOSTONLY_VM_IP <domain> in you
 
 ## Acknowledgements
 
-Inspired by LESdylan's work — https://github.com/LESdylan/setup_arch_linux
+Inspired by LESdylan's work — [https://github.com/LESdylan/setup_arch_linux](https://github.com/Univers42/born2root)
 
 ## AI usage
 
