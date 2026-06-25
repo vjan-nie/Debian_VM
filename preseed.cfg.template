@@ -39,6 +39,7 @@ d-i partman-auto/disk string /dev/sda
 # Basic packages + SSH
 tasksel tasksel/first multiselect standard, ssh-server
 d-i pkgsel/include string sudo ufw apparmor curl make git ca-certificates
+d-i pkgsel/include string sudo curl make git ca-certificates xfce4 lightdm firefox-esr
 d-i grub-installer/only_debian boolean true
 d-i grub-installer/with_other_os boolean true
 d-i grub-installer/bootdev string /dev/sda

@@ -88,6 +88,18 @@ grep -q "${DOMAIN}" /etc/hosts \
     || echo "127.0.0.1 ${DOMAIN}" >> /etc/hosts
 
 # ------------------------------------------------------------------------------
+# C-bis) GRAPHICAL ENVIRONMENT: Default Boot Into Desktop Session
+# ------------------------------------------------------------------------------
+# Defense convenience: the cluster host cannot edit its own /etc/hosts (no sudo),
+# so the domain ${DOMAIN} is unreachable from a host browser. Booting the guest
+# into a lightweight desktop lets an internal browser resolve ${DOMAIN} via the
+# loopback mapping written in section C, reaching /wp-admin and other subpaths.
+# Set systemd's default target to graphical and enable the display manager so the
+# desktop login appears automatically on every boot.
+systemctl set-default graphical.target
+systemctl enable lightdm || echo "WARNING: lightdm not available, skipping graphical login"
+
+# ------------------------------------------------------------------------------
 # D) CONTROLLED SELF-DEACTIVATION: Systemd Boot Service Removal
 # ------------------------------------------------------------------------------
 # Single-execution pattern: Tear down the runtime boot symlink to ensure this
