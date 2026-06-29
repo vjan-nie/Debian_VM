@@ -13,7 +13,7 @@ Zero-touch deployment of a headless Debian VM in VirtualBox, pre-provisioned for
 
 ## Quick start
 
-0. Download Debian ISO: https://www.debian.org/distrib/
+0. Download Debian ISO and place it the repo's root: https://www.debian.org/distrib/
 1. Edit `config.sh` (see the table below).
 2. `make`
 3. When provisioning finishes, log in, run Inception, and open the site in your host browser.
